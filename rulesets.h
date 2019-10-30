@@ -62,12 +62,14 @@ qbool Rulesets_RestrictPacket(void);
 qbool Rulesets_RestrictParticles(void);
 qbool Rulesets_AllowNoShadows(void);
 qbool Rulesets_RestrictTCL(void);
-qbool Rulesets_RestrictSound(void);
+qbool Rulesets_RestrictSound(const char* name);
 int Rulesets_MaxSequentialWaitCommands(void);
 qbool Ruleset_BlockHudPicChange(void);
 qbool Ruleset_AllowPolygonOffset(entity_t* ent);
 qbool Rulesets_AllowAlternateModel(const char* modelName);
 qbool RuleSets_DisallowModelOutline(struct model_s *mod);
+qbool RuleSets_DisallowExternalTexture(struct model_s *mod);
+qbool RuleSets_DisallowSimpleTexture(struct model_s *mod);
 
 // OnChange functions controling when a variable value changes
 void Rulesets_OnChange_indphys (cvar_t *var, char *value, qbool *cancel);

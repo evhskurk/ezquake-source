@@ -310,6 +310,7 @@ void CL_DecayLights(void)
 	unsigned int i;
 	unsigned int j;
 	dlight_t *dl;
+	extern cvar_t r_lightdecayrate;
 
 	if (cls.state < ca_active) {
 		return;
@@ -320,7 +321,7 @@ void CL_DecayLights(void)
 			for (j = 0; j < 32; j++) {
 				if ((cl_dlight_active[i]&(1<<j)) && i*32+j < MAX_DLIGHTS) {
 					dl = cl_dlights + i*32 + j;
-					dl->radius -= cls.frametime * dl->decay;
+					dl->radius -= max(r_lightdecayrate.value, 1) * cls.frametime * dl->decay;
 
 					if (dl->radius < 0) {
 						dl->radius = 0;
@@ -1104,6 +1105,16 @@ void CL_LinkPacketEntities(void)
 
 		if ((!cls.mvdplayback || Cam_TrackNum() >= 0) && cl.racing && cl.race_pacemaker_ent == state->number && !CL_SetAlphaByDistance(&ent)) {
 			continue;
+		}
+
+		ent.renderfx &= ~(RF_BACKPACK_FLAGS);
+		if (cls.mvdplayback && model->modhint == MOD_BACKPACK) {
+			if (cent->contents == IT_ROCKET_LAUNCHER) {
+				ent.renderfx |= RF_ROCKETPACK;
+			}
+			else if (cent->contents == IT_LIGHTNING) {
+				ent.renderfx |= RF_LGPACK;
+			}
 		}
 
 		CL_AddEntity (&ent);
@@ -2505,7 +2516,7 @@ void CL_AddParticleTrail(entity_t* ent, centity_t* cent, vec3_t* old_origin, cus
 				ParticleAlphaTrail(*old_origin, ent->origin, &cent->trail_origin, 2, 0.4);
 			}
 		}
-		else if (model->modhint == MOD_TF_TRAIL && amf_extratrails.value)
+		else if (model->modhint_trail == MOD_TF_TRAIL && amf_extratrails.value)
 		{
 			// VULT TRAILS
 			ParticleAlphaTrail(*old_origin, ent->origin, &cent->trail_origin, 4, 0.4);

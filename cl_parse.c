@@ -2035,19 +2035,21 @@ void CL_NewTranslation (int slot)
 			teammate = true;
 		}
 
-		if (teammate)
-		{
-			if (cl_teamtopcolor.integer != -1)
+		if (teammate) {
+			if (cl_teamtopcolor.integer != -1) {
 				player->topcolor = cl_teamtopcolor.value;
-			if (cl_teambottomcolor.integer != -1)
+			}
+			if (cl_teambottomcolor.integer != -1) {
 				player->bottomcolor = cl_teambottomcolor.value;
+			}
 		}
-		else if (slot != cl.playernum)
-		{
-			if (cl_enemytopcolor.integer != -1)
+		else if (slot != cl.playernum) {
+			if (cl_enemytopcolor.integer != -1) {
 				player->topcolor = cl_enemytopcolor.value;
-			if (cl_enemybottomcolor.integer != -1)
+			}
+			if (cl_enemybottomcolor.integer != -1) {
 				player->bottomcolor = cl_enemybottomcolor.value;
+			}
 		}
 	}
 
@@ -2376,7 +2378,7 @@ void CL_ParseVWepPrecache (char *str)
 			if (strstr(p, "..") || p[0] == '/' || p[0] == '\\')
 				Host_Error("CL_ParseVWepPrecache: illegal model name '%s'", p);
 
-			if (strstr(p, "/"))
+			if (strchr(p, '/'))
 			{
 				// A full path was specified.
 				strlcpy(cl.vw_model_name[i], p, sizeof(cl.vw_model_name[0]));
@@ -2389,7 +2391,7 @@ void CL_ParseVWepPrecache (char *str)
 			}
 
 			// Use default extension if not specified.
-			if (!strstr(p, "."))
+			if (!strchr(p, '.'))
 				strlcat(cl.vw_model_name[i], ".mdl", sizeof(cl.vw_model_name[0]));
 		}
 	}
@@ -2920,17 +2922,17 @@ void CL_ProcessPrint (int level, char* s0)
 
 		if (s[0])  // KT sometimes sends empty strings
 		{
-			if (con_timestamps.value != 0) // @CHECKME@
-			{
+			// @CHECKME@
+			if (con_timestamps.integer) {
 				SYSTEMTIME lt;
 				char tmpbuf[16];
 				GetLocalTime (&lt);
-				if (con_timestamps.value == 1) {
-					snprintf(tmpbuf,  sizeof (tmpbuf), "%2d:%02d ", lt.wHour, lt.wMinute);
+				if (con_timestamps.integer == 2 && (cl.spectator || cls.demoplayback || cl.standby)) {
+					snprintf(tmpbuf, sizeof(tmpbuf), "%2d:%02d:%02d ", lt.wHour, lt.wMinute, lt.wSecond);
 					Com_Printf(tmpbuf);
 				}
 				else {
-					snprintf(tmpbuf,  sizeof (tmpbuf), "%2d:%02d:%02d ", lt.wHour, lt.wMinute, lt.wSecond);
+					snprintf(tmpbuf, sizeof(tmpbuf), "%2d:%02d ", lt.wHour, lt.wMinute);
 					Com_Printf(tmpbuf);
 				}
 			}
@@ -2998,9 +3000,41 @@ void CL_ParseStufftext (void)
 			return;
 		}
 	}
-	else if (!strncmp(s, "//ktx race ", sizeof("//ktx race ") - 1)) {
-		if (!strncmp(s, "//ktx race pm ", sizeof("//ktx race pm ") - 1)) {
-			cl.race_pacemaker_ent = atoi(s + sizeof("//ktx race pm ") - 1);
+	else if (!strncmp(s, "//ktx ", sizeof("//ktx ") - 1)) {
+		if (!strncmp(s, "//ktx race ", sizeof("//ktx race ") - 1)) {
+			if (!strncmp(s, "//ktx race pm ", sizeof("//ktx race pm ") - 1)) {
+				cl.race_pacemaker_ent = atoi(s + sizeof("//ktx race pm ") - 1);
+			}
+		}
+		else if (!strcmp(s, "//ktx matchstart\n")) {
+			if (cls.mvdplayback) {
+				MVDAnnouncer_MatchStart();
+			}
+		}
+		else if (!strncmp(s, "//ktx took ", sizeof("//ktx took ") - 1)) {
+			if (cls.mvdplayback) {
+				MVDAnnouncer_ItemTaken(s + 2);
+			}
+		}
+		else if (!strncmp(s, "//ktx timer ", sizeof("//ktx timer ") - 1)) {
+			if (cls.mvdplayback) {
+				MVDAnnouncer_StartTimer(s + 2);
+			}
+		}
+		else if (!strncmp(s, "//ktx drop ", sizeof("//ktx drop ") - 1)) {
+			if (cls.mvdplayback) {
+				MVDAnnouncer_PackDropped(s + 2);
+			}
+		}
+		else if (!strncmp(s, "//ktx expire ", sizeof("//ktx expire ") - 1)) {
+			if (cls.mvdplayback) {
+				MVDAnnouncer_Expired(s + 2);
+			}
+		}
+		else if (!strncmp(s, "//ktx bp ", sizeof("//ktx bp ") - 1)) {
+			if (cls.mvdplayback) {
+				MVDAnnouncer_BackpackPickup(s + 2);
+			}
 		}
 	}
 
@@ -3117,6 +3151,14 @@ void CL_ParseStufftext (void)
 
 		MVD_ParseUserCommand (s + sizeof("//ucmd ") - 1);
 	}
+	else if (!strncmp(s, "//finalscores ", sizeof("//finalscores ") - 1))
+	{
+		cmd_alias_t* alias = Cmd_FindAlias("f_qtvfinalscores");
+
+		if (alias) {
+			Cbuf_AddTextEx(&cbuf_svc, va("f_qtvfinalscores %s\n", s + sizeof("//finalscores ") - 1));
+		}
+	}
 	else
 	{
 		Cbuf_AddTextEx(&cbuf_svc, s);
@@ -3137,12 +3179,20 @@ void CL_SetStat (int stat, int value)
 	// Set the stat value for the current player we're parsing in the MVD.
 	if (cls.mvdplayback)
 	{
+		int old_value = cl.players[cls.lastto].stats[stat];
+
 		cl.players[cls.lastto].stats[stat] = value;
 
 		// If we're not tracking the active player,
 		// then don't update sbar and such.
-		if ( Cam_TrackNum() != cls.lastto )
+		if (Cam_TrackNum() != cls.lastto) {
 			return;
+		}
+
+		if (stat == STAT_ITEMS && (old_value & IT_ALL_WEAPONS) > (value & IT_ALL_WEAPONS)) {
+			// Weapons removed, reset last fired
+			cl.lastfired = 0;
+		}
 	}
 
 	Sbar_Changed();

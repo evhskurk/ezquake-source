@@ -26,7 +26,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "ignore.h"
 #include "fchecks.h"
 #include "config_manager.h"
-#include "mp3_player.h"
 #include "mvd_utils.h"
 #include "EX_browser.h"
 #include "EX_qtvlist.h"
@@ -45,7 +44,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "version.h"
 #include "stats_grid.h"
 #include "fmod.h"
-#include "modules.h"
 #include "sbar.h"
 #include "utils.h"
 #include "qsound.h"
@@ -117,7 +115,6 @@ cvar_t	cl_predict_players = {"cl_predict_players", "1"};
 cvar_t	cl_solid_players = {"cl_solid_players", "1"};
 cvar_t	cl_predict_half = {"cl_predict_half", "0"};
 
-cvar_t  show_fps2 = {"scr_scoreboard_drawfps","0"};
 cvar_t	hud_fps_min_reset_interval = {"hud_fps_min_reset_interval", "30"};
 
 cvar_t  localid = {"localid", ""};
@@ -186,6 +183,7 @@ cvar_t r_instagibtrail				= {"r_instagibTrail", "1"};
 cvar_t r_explosiontype			= {"r_explosionType", "1"}; // 7
 cvar_t r_telesplash				= {"r_telesplash", "1"}; // disconnect
 cvar_t r_shaftalpha				= {"r_shaftalpha", "1"};
+cvar_t r_lightdecayrate         = {"r_lightdecayrate", "2"}; // default 2, as CL_DecayLights() used to get called twice per frame
 
 // info mirrors
 cvar_t  password                = {"password", "", CVAR_USERINFO};
@@ -353,7 +351,7 @@ void CL_MakeActive(void)
 	if (!cls.demoseeking) {
 		Con_ClearNotify ();
 	}
-	TP_ExecTrigger ("f_spawn");
+	TP_ExecTrigger("f_spawn");
 }
 
 // Cvar system calls this when a CVAR_USERINFO cvar changes
@@ -742,9 +740,16 @@ void CL_QWURL_f (void)
 	}
 	else if (!strncasecmp(command, "qtv", 3))
 	{
-		char *password = command + 4;
+		char *password = command + 3;
 
-		Cbuf_AddText(va("qtvplay %s%s\n", connection_str, ((*password) ? va(" %s", password) : "")));
+		if (*password == '/') {
+			*password = ' ';
+		}
+		else {
+			*password = '\0';
+		}
+
+		Cbuf_AddText(va("qtvplay %s%s\n", connection_str, password));
 	}
 	else
 	{
@@ -1666,8 +1671,6 @@ void CL_InitLocal (void)
 
 	Cvar_SetCurrentGroup(CVAR_GROUP_SCREEN);
 	Cvar_Register (&cl_shownet);
-	Cvar_Register (&show_fps2);
-	Cmd_AddLegacyCommand ("draw_fps", "scr_scoreboard_drawfps");
 	Cvar_Register (&cl_confirmquit);
 	Cvar_Register (&cl_window_caption);
 	Cvar_Register (&cl_onload);
@@ -1718,6 +1721,7 @@ void CL_InitLocal (void)
 	Cmd_AddLegacyCommand ("cl_truelightning", "cl_fakeshaft");
 	Cvar_Register (&r_telesplash);
 	Cvar_Register (&r_shaftalpha);
+	Cvar_Register (&r_lightdecayrate);
 
 	Cvar_SetCurrentGroup(CVAR_GROUP_SKIN);
 	Cvar_Register (&noskins);
@@ -1964,7 +1968,6 @@ void CL_Init (void)
 	// moved to host.c:Host_Init()
 	//ConfigManager_Init();
 	Stats_Init();
-	MP3_Init();
 	SB_RootInit();
 #ifdef WITH_IRC	
 	IRC_Init();
@@ -2032,15 +2035,7 @@ static double CL_MinFrameTime (void)
 			return 0;
 
 		// Multiview.
-		if (CL_MultiviewEnabled())
-		{
-			fps = max (30.0, cl_maxfps.value * CL_MultiviewNumberViews());
-		}
-		else
-		{
-			fps = max (30.0, cl_maxfps.value);
-		}
-
+		fps = max(30.0, cl_maxfps.value);
 	}
 	else
 	{
@@ -2153,7 +2148,6 @@ void CL_SoundFrame (void)
 #endif
 			S_Update(hax, vec3_origin, vec3_origin, vec3_origin);
 		}
-		CL_DecayLights ();
 	}
 	else
 	{
@@ -2509,7 +2503,6 @@ void CL_Shutdown (void)
 	SList_Shutdown();
 	CDAudio_Shutdown();
 	S_Shutdown();
-	MP3_Shutdown();
 	IN_Shutdown ();
 	Log_Shutdown();
 	if (host_basepal)

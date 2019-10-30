@@ -50,6 +50,10 @@ c_args = [
 	'-Wno-pointer-to-int-cast',
 ]
 
+if meson.get_compiler('c').has_argument('-msse2')
+	c_args += '-msse2'
+endif
+
 png = dependency('libpng', required : false)
 if png.found()
 	deps += png
@@ -75,12 +79,12 @@ if speex.found() and speexdsp.found()
 	c_args += '-DWITH_SPEEX'
 endif
 
-vorbis = dependency('vorbisfile', required : false)
-if vorbis.found()
-	deps += vorbis
+#vorbis = dependency('vorbisfile', required : false)
+#if vorbis.found()
+#	deps += vorbis
 # crashed on a quick test
 #	c_args += '-DWITH_OGG_VORBIS'
-endif
+#endif
 
 zlib = dependency('zlib', required : false)
 if zlib.found()
@@ -169,7 +173,6 @@ sources = [
 	'ignore.c',
 	'image.c',
 	'in_sdl2.c',
-	'ioapi.c',
 	'irc.c',
 	'irc_filter.c',
 	'keys.c',
@@ -180,18 +183,10 @@ sources = [
 	'menu.c',
 	'menu_demo.c',
 	'menu_ingame.c',
-	'menu_mp3player.c',
 	'menu_multiplayer.c',
 	'menu_options.c',
 	'menu_proxy.c',
-	'modules.c',
 	'movie.c',
-	'mp3_audacious.c',
-	'mp3_mpd.c',
-	'mp3_player.c',
-	'mp3_winamp.c',
-	'mp3_xmms2.c',
-	'mp3_xmms.c',
 	'mvd_autotrack.c',
 	'mvd_utils.c',
 	'mvd_xmlstats.c',
@@ -218,7 +213,6 @@ sources = [
 	'snd_main.c',
 	'snd_mem.c',
 	'snd_mix.c',
-	'snd_ov.c',
 	'snd_voip.c',
 	'stats_grid.c',
 	'sv_ccmds.c',
@@ -246,7 +240,6 @@ sources = [
 	'textencoding.c',
 	'tp_msgs.c',
 	'tp_triggers.c',
-	'unzip.c',
 	'utils.c',
 	'version.c',
 	'vfs_doomwad.c',
@@ -273,6 +266,18 @@ sources = [
 	'zone.c',
 ]
 
+includes = []
+minizip = dependency('minizip', required : false)
+if minizip.found()
+	deps += minizip
+else
+	sources += [
+		'minizip/ioapi.c',
+		'minizip/unzip.c',
+	]
+	includes += include_directories('minizip')
+endif
+
 awk = find_program('awk')
 od = find_program('od')
 gen = generator(find_program(meson.source_root() + '/json2c.sh'),
@@ -297,7 +302,6 @@ if host_machine.system() == 'windows'
 	deps += meson.get_compiler('c').find_library('ws2_32')
 	deps += meson.get_compiler('c').find_library('comctl32')
 	deps += meson.get_compiler('c').find_library('winmm')
-	c_args += '-DWITH_WINAMP'
 elif host_machine.system() == 'darwin'
 	add_languages('objc')
 	sources += [
@@ -326,6 +330,7 @@ endif
 
 executable('ezquake-' + host_machine.system() + '-' + host_machine.cpu(), sources,
 	dependencies : deps,
+	include_directories : includes,
 	c_args : c_args,
 	link_args : link_args,
 )

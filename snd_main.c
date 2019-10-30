@@ -96,6 +96,7 @@ cvar_t s_linearresample_stream = {"s_linearresample_stream", "0"};
 cvar_t s_khz = {"s_khz", "11", CVAR_NONE, OnChange_s_khz}; // If > 11, default sounds are noticeably different.
 cvar_t s_desiredsamples = {"s_desiredsamples", "0", CVAR_AUTO, OnChange_s_desiredsamples };
 cvar_t s_audiodevice = {"s_audiodevice", "0", CVAR_LATCH};
+cvar_t s_silent_racing = { "s_silent_racing", "0" };
 
 SDL_mutex *smutex;
 soundhw_t *shw;
@@ -437,6 +438,7 @@ static void S_Register_RegularCvarsAndCommands(void)
 	Cvar_Register(&s_swapstereo);
 	Cvar_Register(&s_linearresample_stream);
 	Cvar_Register(&s_desiredsamples);
+	Cvar_Register(&s_silent_racing);
 
 	Cvar_ResetCurrentGroup();
 
@@ -987,19 +989,18 @@ static void S_Play_f (void)
 	if (!snd_initialized || !snd_started || s_nosound.value)
 		return;
 
-	if (Rulesets_RestrictSound() == true) {
-		return;
-	}
-
 	for (i = 1; i < Cmd_Argc(); ++i) {
 		float vol = 1.0f;                 // Set by playvol command
 		float attenuation = 0.0f;         // full volume regardless of distance
 		vec3_t sound_origin;
 		int entity = SELF_SOUND_ENTITY;   // ezhfan: pnum+1 changed to SELF_SOUND to make sound not to disappear
 
-		VectorCopy (listener_origin, sound_origin);
-
 		strlcpy (name, Cmd_Argv(i), sizeof(name));
+		if (Rulesets_RestrictSound(name)) {
+			continue;
+		}
+
+		VectorCopy(listener_origin, sound_origin);
 		COM_DefaultExtension (name, ".wav");
 		sfx = S_PrecacheSound(name);
 		if (playvol)
